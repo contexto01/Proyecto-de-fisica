@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema Amortiguador de Vehículos — Simulación Física y Termodinámica</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- BARRA SUPERIOR / ENCABEZADO -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="11" y="3" width="14" height="5" rx="2" stroke="#38bdf8" stroke-width="2"/>
+          <path d="M12 10L24 13L12 16L24 19L12 22L24 25L12 28" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="18" y1="8" x2="18" y2="30" stroke="#f97316" stroke-width="3" stroke-linecap="round"/>
+          <rect x="11" y="28" width="14" height="5" rx="2" stroke="#38bdf8" stroke-width="2"/>
+        </svg>
+      </div>
+      <div>
+        <h1>SISTEMA AMORTIGUADOR DE VEHÍCULOS</h1>
+        <p class="subtitle">Simulación de Oscilaciones Amortiguadas (EDO 2° Orden) y Termodinámica del Fluido Hidráulico · <strong>UAO</strong></p>
+      </div>
+    </div>
+
+    <div class="header-badges">
+      <div id="regime-badge" class="badge badge-sub">
+        <span class="dot"></span>
+        <span id="regime-badge-text">RÉGIMEN SUBAMORTIGUADO (b² &lt; 4mk)</span>
+      </div>
+      <div id="fading-badge" class="badge badge-fading hidden">
+        <span>⚠️ DEGRADACIÓN TÉRMICA (FADING &gt; 90°C)</span>
+      </div>
+      <div class="authors-pill" title="Universidad Autónoma de Occidente - Facultad de Ciencias Básicas">
+        <span>J. Soto (22500008) · D. Barrera (2250814)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENEDOR PRINCIPAL (3 COLUMNAS) -->
+  <main class="dashboard">
+    <!-- COLUMNA IZQUIERDA: CONTROLES -->
+    <aside class="panel controls-panel">
+      <!-- 1. Botones de Régimen -->
+      <section class="control-group">
+        <div class="group-header">
+          <h2>1. Regímenes de Amortiguamiento</h2>
+          <span class="hint">Criterio: 4mk − b²</span>
+        </div>
+        <div class="preset-grid">
+          <button id="preset-none" class="preset-btn" data-regime="none">
+            <span class="preset-title">Sin Amortiguador</span>
+            <span class="preset-formula">b = 0 · ζ = 0</span>
+          </button>
+          <button id="preset-under" class="preset-btn active" data-regime="under">
+            <span class="preset-title">Subamortiguado</span>
+            <span class="preset-formula">b² &lt; 4mk · ζ = 0.22</span>
+          </button>
+          <button id="preset-crit" class="preset-btn" data-regime="critical">
+            <span class="preset-title">Crítico</span>
+            <span class="preset-formula">b² = 4mk · ζ = 1.00</span>
+          </button>
+          <button id="preset-over" class="preset-btn" data-regime="over">
+            <span class="preset-title">Sobreamortiguado</span>
+            <span class="preset-formula">b² &gt; 4mk · ζ = 1.85</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- 2. Acciones Rápidas y Cámara Lenta -->
+      <section class="control-group">
+        <div class="group-header">
+          <h2>2. Control de Simulación y Baches</h2>
+        </div>
+        <div class="action-row">
+          <button id="btn-bump" class="btn btn-accent" title="Genera un bache inmediatamente delante de la rueda">
+            💥 Generar Bache Ahora
+          </button>
+        </div>
+        <div class="action-row two-cols">
+          <button id="btn-pause" class="btn btn-secondary">⏸ Pausar</button>
+          <button id="btn-reset" class="btn btn-secondary">🔄 Reiniciar</button>
+        </div>
+
+        <!-- Cámara Lenta -->
+        <div class="slider-item compact">
+          <div class="slider-label">
+            <span>🎥 Cámara Lenta (Velocidad Tiempo)</span>
+            <strong id="val-timescale" class="mono">1.00x</strong>
+          </div>
+          <input type="range" id="slider-timescale" min="0.05" max="1.0" step="0.05" value="1.0" />
+          <div class="quick-pills">
+            <button class="pill-btn" data-timescale="0.1">0.1x (Ultra lenta)</button>
+            <button class="pill-btn" data-timescale="0.25">0.25x</button>
+            <button class="pill-btn" data-timescale="0.5">0.5x</button>
+            <button class="pill-btn active" data-timescale="1.0">1.0x (Real)</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Parámetros Físicos (Sliders) -->
+      <section class="control-group">
+        <div class="group-header">
+          <h2>3. Parámetros del Sistema (m, b, k, v)</h2>
+        </div>
+
+        <div class="slider-item">
+          <div class="slider-label">
+            <span>Amortiguamiento nominal (<em>b</em>)</span>
+            <strong id="val-b" class="mono highlight-orange">1650 N·s/m</strong>
+          </div>
+          <input type="range" id="slider-b" min="0" max="15000" step="25" value="1650" />
+          <div class="slider-subinfo">
+            <span>0 (Sin amort.)</span>
+            <span id="label-bcrit">b_crítico = 7483 N·s/m</span>
+          </div>
+        </div>
+
+        <div class="slider-item">
+          <div class="slider-label">
+            <span>Rigidez del resorte (<em>k</em>)</span>
+            <strong id="val-k" class="mono highlight-cyan">35000 N/m</strong>
+          </div>
+          <input type="range" id="slider-k" min="10000" max="65000" step="500" value="35000" />
+        </div>
+
+        <div class="slider-item">
+          <div class="slider-label">
+            <span>Masa suspendida carrocería (<em>m</em>)</span>
+            <strong id="val-m" class="mono">400 kg</strong>
+          </div>
+          <input type="range" id="slider-m" min="200" max="800" step="10" value="400" />
+        </div>
+
+        <div class="slider-item">
+          <div class="slider-label">
+            <span>Velocidad del vehículo (<em>v</em>)</span>
+            <strong id="val-v" class="mono highlight-green">25 km/h (6.9 m/s)</strong>
+          </div>
+          <input type="range" id="slider-v" min="10" max="120" step="1" value="25" />
+        </div>
+
+        <div class="slider-item">
+          <div class="slider-label">
+            <span>Altura de irregularidad / bache</span>
+            <strong id="val-bump-h" class="mono">10.0 cm</strong>
+          </div>
+          <input type="range" id="slider-bump-h" min="4" max="20" step="0.5" value="10" />
+        </div>
+      </section>
+
+      <!-- 4. Terreno y Termofísica del Aceite -->
+      <section class="control-group">
+        <div class="group-header">
+          <h2>4. Terreno y Fluido Hidráulico</h2>
+        </div>
+
+        <div class="select-item">
+          <label for="select-terrain">Perfil de la Carretera:</label>
+          <select id="select-terrain">
+            <option value="periodic" selected>Bache Periódico (Resalto / Policía acostado)</option>
+            <option value="pothole">Bache Doble (Hueco + Resalto)</option>
+            <option value="washboard">Terreno Rizado Continuo (Ondulado severo)</option>
+            <option value="flat">Carretera Plana (Usar botón "Generar Bache")</option>
+          </select>
+        </div>
+
+        <div class="select-item">
+          <label for="select-fluid">Fluido Hidráulico (Propiedades c_p, ρ, μ):</label>
+          <select id="select-fluid">
+            <option value="synthetic">Aceite Sintético Alta Gama (cp=2300, ρ=850)</option>
+            <option value="standard" selected>Aceite Hidráulico Estándar (cp=1900, ρ=880)</option>
+            <option value="degraded">Aceite Mineral Baja Capacidad (cp=1300, ρ=910)</option>
+          </select>
+        </div>
+
+        <div class="select-item">
+          <label for="select-thermal-scale">Escala Temporal Térmica (Calentamiento + Convección):</label>
+          <select id="select-thermal-scale">
+            <option value="1">1x — Tiempo Térmico Real (Lento)</option>
+            <option value="15" selected>15x — Demostración Equilibrada (Sube y disipa)</option>
+            <option value="45">45x — Estrés Térmico Acelerado (Ver Fading)</option>
+          </select>
+        </div>
+
+        <div class="thermal-buttons">
+          <button id="btn-cool-oil" class="btn btn-small btn-cool" title="Restaurar temperatura del aceite a 25°C">
+            ❄️ Enfriar Aceite (25°C)
+          </button>
+          <button id="btn-heat-oil" class="btn btn-small btn-heat" title="Elevar temperatura a 95°C para observar el Fading Térmico">
+            🔥 Simular Sobrecalentamiento (95°C)
+          </button>
+        </div>
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="chk-fading" checked />
+          <span>Activar Degradación Térmica (<em>Fading</em>: b disminuye con T)</span>
+        </label>
+      </section>
+    </aside>
+
+    <!-- COLUMNA CENTRAL: SIMULACIÓN VEHÍCULO + CORTE DEL AMORTIGUADOR -->
+    <section class="center-column">
+      <!-- Canvas 1: Vehículo y Carretera -->
+      <div class="panel canvas-card vehicle-card">
+        <div class="card-header">
+          <div>
+            <h3>VISTA DINÁMICA DEL VEHÍCULO (MASA SUSPENDIDA vs MASA NO SUSPENDIDA)</h3>
+            <p class="card-sub">Ecuación con excitación de base: <code>m·x'' + b(T)·(x' − y') + k·(x − y) = 0</code></p>
+          </div>
+          <div class="live-Force-legend">
+            <span class="legend-chip"><i class="swatch swatch-cyan"></i> F_k Resorte</span>
+            <span class="legend-chip"><i class="swatch swatch-orange"></i> F_b Amortiguador</span>
+            <span class="legend-chip"><i class="swatch swatch-green"></i> Equilibrio (x = 0)</span>
+          </div>
+        </div>
+        <div class="canvas-wrapper">
+          <canvas id="canvas-car"></canvas>
+        </div>
+      </div>
+
+      <!-- Fila Inferior Central: Corte del Amortiguador + Telemetría Matemática y Térmica -->
+      <div class="bottom-center-grid">
+        <!-- Canvas 2: Corte Transversal del Amortiguador -->
+        <div class="panel canvas-card damper-card">
+          <div class="card-header">
+            <div>
+              <h3>CORTE TRANSVERSAL: AMORTIGUADOR HIDRÁULICO</h3>
+              <p class="card-sub">Flujo por microválvulas del pistón y conversión de E_cinética → Calor (Q)</p>
+            </div>
+          </div>
+          <div class="canvas-wrapper">
+            <canvas id="canvas-damper"></canvas>
+          </div>
+        </div>
+
+        <!-- Panel de Telemetría Física y Termodinámica del PDF -->
+        <div class="panel telemetry-card">
+          <div class="card-header">
+            <h3>MODELO MATEMÁTICO Y BALANCE TÉRMICO</h3>
+          </div>
+
+          <div class="telemetry-body">
+            <!-- Bloque EDO y Discriminante -->
+            <div class="math-box">
+              <div class="math-title">Clasificación (Sección 3.3 del Proyecto)</div>
+              <div class="equation-display" id="live-edo-text">
+                400·x'' + 1650·x' + 35000·x = 0
+              </div>
+              <div class="discriminant-grid">
+                <div class="disc-item">
+                  <span class="disc-label">Término b²</span>
+                  <strong id="math-b2" class="mono">2.72 × 10⁶</strong>
+                </div>
+                <div class="disc-vs" id="math-comparison">&lt;</div>
+                <div class="disc-item">
+                  <span class="disc-label">Término 4mk</span>
+                  <strong id="math-4mk" class="mono">5.60 × 10⁷</strong>
+                </div>
+              </div>
+              <div class="metrics-mini-grid">
+                <div>
+                  <span>Factor ζ = b / (2√mk):</span>
+                  <strong id="math-zeta" class="mono">0.220</strong>
+                </div>
+                <div>
+                  <span>Relación de Fuerzas:</span>
+                  <strong id="math-force-rel" class="mono highlight-cyan">F_R &gt; F_A (Oscila)</strong>
+                </div>
+                <div>
+                  <span>Frec. Natural ω₀:</span>
+                  <strong id="math-w0" class="mono">9.35 rad/s</strong>
+                </div>
+                <div>
+                  <span>b_efectivo(T):</span>
+                  <strong id="math-bef" class="mono highlight-orange">1650 N·s/m (100%)</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bloque Termodinámica y Calorimetría -->
+            <div class="thermo-box">
+              <div class="math-title">Balance Térmico: Q = m_aceite · c_p · ΔT (Sección 3.4)</div>
+
+              <div class="temp-gauge-row">
+                <div class="temp-readout">
+                  <span class="temp-label">Temperatura Aceite (T)</span>
+                  <strong id="val-temp" class="temp-big mono">25.0 °C</strong>
+                  <span id="val-deltat" class="temp-delta mono">ΔT = +0.0 °C</span>
+                </div>
+                <div class="thermometer-bar-container">
+                  <div class="thermometer-bar-bg">
+                    <div id="thermometer-fill" class="thermometer-bar-fill" style="width: 10%;"></div>
+                    <div class="fading-line" title="Límite de Degradación Térmica (90°C)"></div>
+                  </div>
+                  <div class="thermometer-ticks">
+                    <span>25°C</span>
+                    <span>60°C</span>
+                    <span class="danger-tick">90°C (Fading)</span>
+                    <span>130°C</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="fluid-props-grid">
+                <div class="prop-chip">
+                  <span class="prop-name">Calor Disipado (Q)</span>
+                  <strong id="val-q" class="mono highlight-yellow">0.00 kJ (0 J)</strong>
+                </div>
+                <div class="prop-chip">
+                  <span class="prop-name">Potencia Viscosa (b·v²)</span>
+                  <strong id="val-power" class="mono">0 W</strong>
+                </div>
+                <div class="prop-chip">
+                  <span class="prop-name">Calor Específico (c_p)</span>
+                  <strong id="val-cp" class="mono">1900 J/(kg·°C)</strong>
+                </div>
+                <div class="prop-chip">
+                  <span class="prop-name">Densidad (ρ) / Masa</span>
+                  <strong id="val-rho" class="mono">880 kg/m³ (0.35 kg)</strong>
+                </div>
+                <div class="prop-chip">
+                  <span class="prop-name">Viscosidad Relativa (μ)</span>
+                  <strong id="val-visc" class="mono">100% (Óptima)</strong>
+                </div>
+                <div class="prop-chip">
+                  <span class="prop-name">Convección al Aire</span>
+                  <strong id="val-conv" class="mono">0.0 W</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- COLUMNA DERECHA: 3 GRÁFICAS EN TIEMPO REAL -->
+    <aside class="charts-column">
+      <!-- Gráfica 1: Posición x(t) -->
+      <div class="panel chart-card">
+        <div class="card-header compact">
+          <div>
+            <h3>1. POSICIÓN VERTICAL x(t) vs TIEMPO</h3>
+            <p class="card-sub">Respuesta de la carrocería, terreno y(t) y envolvente exponencial</p>
+          </div>
+          <div class="chart-legend">
+            <span><i class="swatch swatch-cyan"></i> x(t) Carrocería</span>
+            <span><i class="swatch swatch-gray"></i> y(t) Terreno</span>
+            <span><i class="swatch swatch-green-dash"></i> ±A·e^(-(b/2m)t)</span>
+          </div>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-pos"></canvas>
+        </div>
+      </div>
+
+      <!-- Gráfica 2: Fuerzas F_k vs F_b -->
+      <div class="panel chart-card">
+        <div class="card-header compact">
+          <div>
+            <h3>2. FUERZAS DINÁMICAS: RESORTE (F_k) vs AMORTIGUADOR (F_b)</h3>
+            <p class="card-sub">Ley de Hooke (−kx) frente a Fricción Viscosa (−bv)</p>
+          </div>
+          <div class="chart-legend">
+            <span><i class="swatch swatch-cyan"></i> F_k = −k·z (N)</span>
+            <span><i class="swatch swatch-orange"></i> F_b = −b·z' (N)</span>
+          </div>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-forces"></canvas>
+        </div>
+      </div>
+
+      <!-- Gráfica 3: Temperatura T(t) y Calor Q(t) -->
+      <div class="panel chart-card">
+        <div class="card-header compact">
+          <div>
+            <h3>3. TERMODINÁMICA: TEMPERATURA T(t) Y CALOR Q(t)</h3>
+            <p class="card-sub">Transformación de energía mecánica a térmica y umbral de Fading (90°C)</p>
+          </div>
+          <div class="chart-legend">
+            <span><i class="swatch swatch-red"></i> T_aceite (°C)</span>
+            <span><i class="swatch swatch-yellow"></i> Calor Q (kJ)</span>
+          </div>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-thermo"></canvas>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
